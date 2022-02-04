@@ -1,9 +1,8 @@
-use boolua::lex::Token;
-
-use logos::Logos;
+use std::{env, fs};
 
 fn main() {
-    let source = std::fs::read_to_string(std::env::args().nth(1).unwrap()).unwrap();
+    let source = fs::read_to_string(env::args().nth(1).unwrap()).unwrap();
 
-    dbg!(Token::lexer(&source).collect::<Vec<_>>());
+    let parsed = boolua::parse_source(&source);
+    let _ = dbg!(parsed);
 }
