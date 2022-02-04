@@ -25,6 +25,23 @@ end
 
 local statetab
 
+--[==[This is a
+    ]]
+    Long Comment
+    ]=]
+    Meant for testing purposes
+]==]
+
+local blahblah = [=[ Long
+String Literal ]]
+]=]
+
+local escaped = "This string literal has \"escapes inside of it!\a\
+\z
+\'
+'
+blah";
+
 function insert (index, value)
   if not statetab[index] then
     statetab[index] = {n=0}
@@ -54,4 +71,4 @@ for i=1,MAXGEN do
   if nextword == NOWORD then return end
   io.write(nextword, " ")
   w1 = w2; w2 = nextword
-end
+end--

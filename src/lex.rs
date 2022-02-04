@@ -6,11 +6,11 @@ pub enum Token {
     #[regex(r"[a-zA-Z_][a-zA-Z_0-9]*")]
     Ident,
 
-    #[regex(r#""([^"]|\\.)*""#)]
-    #[regex(r#"'([^']|\\.)*'"#)]
+    #[regex(r#"(?s)"([^"]|\\.)*""#)]
+    #[regex(r#"(?s)'([^']|\\.)*'"#)]
     ShortString,
 
-    #[regex(r"\[=*\[", |x| longstring(x, x.slice().len() -2 ))]
+    #[regex(r"\[=*\[", |x| longstring(x, x.slice().len() - 2))]
     LongString,
 
     #[regex(r"\d+(\.\d+)?([eE]\d+)?")]
@@ -76,14 +76,14 @@ pub enum Token {
 
     #[error]
     #[regex(r"[ \f\n\r\t\v]+", logos::skip)]
-    #[regex(r"--[^\n]*", logos::skip)]
     #[regex(r"--\[=*\[", longcomment)]
+    #[regex(r"--([^\n(\[=*\[)].*)?", logos::skip)]
     Error,
 }
 
 fn longstring(lex: &mut Lexer<Token>, n: usize) -> bool {
     let mut looking_for = String::from("]");
-    looking_for += &"=".repeat(n);
+    looking_for.push_str(&"=".repeat(n));
     looking_for.push(']');
 
     let offset = if let Some(offset) = lex.remainder().find(&looking_for) {
@@ -106,6 +106,7 @@ fn longcomment(lex: &mut Lexer<Token>) -> Filter<()> {
 }
 
 #[rustfmt::skip]
+#[macro_export]
 macro_rules! T {
     (and) => {<T![]>::And};
     (break) => {<T![]>::Break};
