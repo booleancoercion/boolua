@@ -7,8 +7,8 @@ use chumsky::recursive::Recursive;
 
 #[derive(Clone, Debug)]
 pub struct Block {
-    stmts: Vec<Stmt>,
-    ret: Option<RetStmt>,
+    pub stmts: Vec<Stmt>,
+    pub ret: Option<RetStmt>,
 }
 
 #[derive(Clone, Debug)]
@@ -31,28 +31,28 @@ pub enum Stmt {
 }
 
 #[derive(Clone, Debug)]
-pub struct AttNameList(Vec<(Name, Attrib)>);
+pub struct AttNameList(pub Vec<(Name, Attrib)>);
 
 #[derive(Clone, Debug)]
-pub struct Attrib(Option<Name>);
+pub struct Attrib(pub Option<Name>);
 
 #[derive(Clone, Debug)]
-pub struct RetStmt(Option<ExprList>);
+pub struct RetStmt(pub Option<ExprList>);
 
 #[derive(Clone, Debug)]
-pub struct Label(Name);
+pub struct Label(pub Name);
 
 #[derive(Clone, Debug)]
-pub struct FnName(Vec<Name>, Option<Name>);
+pub struct FnName(pub Vec<Name>, pub Option<Name>);
 
 #[derive(Clone, Debug)]
-pub struct VarList(Vec<Var>);
+pub struct VarList(pub Vec<Var>);
 
 #[derive(Clone, Debug)]
-pub struct NameList(Vec<Name>);
+pub struct NameList(pub Vec<Name>);
 
 #[derive(Clone, Debug)]
-pub struct ExprList(Vec<Expr>);
+pub struct ExprList(pub Vec<Expr>);
 
 #[derive(Clone, Debug)]
 pub enum Expr {
@@ -84,7 +84,7 @@ pub enum Args {
 }
 
 #[derive(Clone, Debug)]
-pub struct FnCall(PrefixExpr, Option<Name>, Args);
+pub struct FnCall(pub PrefixExpr, pub Option<Name>, pub Args);
 
 #[derive(Clone, Debug)]
 pub enum Var {
@@ -100,10 +100,10 @@ pub enum PrefixExpr {
 }
 
 #[derive(Clone, Debug)]
-pub struct FnDef(FnBody);
+pub struct FnDef(pub FnBody);
 
 #[derive(Clone, Debug)]
-pub struct FnBody(Option<ParList>, Block);
+pub struct FnBody(pub Option<ParList>, pub Block);
 
 #[derive(Clone, Debug)]
 pub enum ParList {
@@ -112,10 +112,10 @@ pub enum ParList {
 }
 
 #[derive(Clone, Debug)]
-pub struct TableCtor(Option<FieldList>);
+pub struct TableCtor(pub Option<FieldList>);
 
 #[derive(Clone, Debug)]
-pub struct FieldList(Vec<Field>);
+pub struct FieldList(pub Vec<Field>);
 
 #[derive(Clone, Debug)]
 pub enum Field {
