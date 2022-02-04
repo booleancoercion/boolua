@@ -1,3 +1,5 @@
+pub mod string;
+
 use logos::{Filter, Lexer, Logos};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Logos)]
