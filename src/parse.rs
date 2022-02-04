@@ -49,12 +49,6 @@ pub struct FnName(Vec<Name>, Option<Name>);
 pub struct VarList(Vec<Var>);
 
 #[derive(Clone, Debug)]
-pub enum Var {
-    Simple(Name),
-    Indexed(PrefixStart, Vec<Expr>),
-}
-
-#[derive(Clone, Debug)]
 pub struct NameList(Vec<Name>);
 
 #[derive(Clone, Debug)]
@@ -83,34 +77,41 @@ pub enum Expr {
 }
 
 #[derive(Clone, Debug)]
-pub enum PrefixStart {
-    FnCall(Box<FnCall>),
-    Parend(Box<Expr>),
-    Name(Name),
-}
-
-#[derive(Clone, Debug)]
-pub struct PrefixExpr(PrefixStart, Vec<Expr>);
-
-#[derive(Clone, Debug)]
-pub enum FnCall {
-    Free {
-        function: PrefixExpr,
-        args: Args,
-    },
-    Method {
-        table: PrefixExpr,
-        name: Name,
-        args: Args,
-    },
-}
-
-#[derive(Clone, Debug)]
 pub enum Args {
     List(Option<ExprList>),
     TableCtor(TableCtor),
     Str(String),
 }
+
+#[derive(Clone, Debug)]
+pub enum AtomExpr {
+    Parend(Box<Expr>),
+    Name(Name),
+}
+
+#[derive(Clone, Debug)]
+pub enum CallOrMethod {
+    Call(Args),
+    Method(Name, Args),
+}
+
+#[derive(Clone, Debug)]
+pub struct FnCall(AtomExpr, Vec<(Vec<Expr>, CallOrMethod)>);
+
+#[derive(Clone, Debug)]
+pub enum PrefixStart {
+    FnCall(FnCall),
+    Atom(AtomExpr),
+}
+
+#[derive(Clone, Debug)]
+pub enum Var {
+    Simple(Name),
+    Indexed(PrefixStart, Vec<Expr>),
+}
+
+#[derive(Clone, Debug)]
+pub struct PrefixExpr(PrefixStart, Vec<Expr>);
 
 #[derive(Clone, Debug)]
 pub struct FnDef(FnBody);
@@ -206,11 +207,9 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let stmt = Recursive::declare();
     let expr = Recursive::declare();
-    let prefixexpr = Recursive::declare();
 
     let stmt = || stmt.clone();
     let expr = || expr.clone();
-    let prefixexpr = || prefixexpr.clone();
 
     let namelist = list(name, J![,]).map(NameList);
 
@@ -247,17 +246,6 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
             .map(Args::List),
         tableconstructor.map(Args::TableCtor),
         litstring.map(Args::Str),
-    ));
-
-    let functioncall = choice((
-        prefixexpr()
-            .then(args.clone())
-            .map(|(function, args)| FnCall::Free { function, args }),
-        prefixexpr()
-            .then_ignore(J![:])
-            .then(name)
-            .then(args)
-            .map(|((table, name), args)| FnCall::Method { table, name, args }),
     ));
 
     let parlist = choice((
@@ -297,28 +285,53 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         .then(J![:].ignore_then(name).or_not())
         .map(|(names, optname)| FnName(names, optname));
 
-    let prefixstart = choice((
-        functioncall
-            .clone()
-            .map(|fncall| PrefixStart::FnCall(Box::new(fncall))),
+    let atomexpr = choice((
         expr()
             .delimited_by(T!['('], T![')'])
-            .map(|expr| PrefixStart::Parend(Box::new(expr))),
-        name.map(PrefixStart::Name),
+            .map(|expr| AtomExpr::Parend(Box::new(expr))),
+        name.map(AtomExpr::Name),
     ));
 
-    let prefixmid = choice((
+    let callormethod =
+        (J![:].ignore_then(name))
+            .or_not()
+            .then(args.clone())
+            .map(|(nameopt, args)| {
+                if let Some(name) = nameopt {
+                    CallOrMethod::Method(name, args)
+                } else {
+                    CallOrMethod::Call(args)
+                }
+            });
+
+    let infix = choice((
         expr().delimited_by(T!['['], T![']']),
         J![.].ignore_then(name).map(|name| Expr::Str(name.0)),
+    ));
+
+    let fncallrest = infix.clone().repeated().then(callormethod);
+
+    let functioncall = atomexpr
+        .clone()
+        .then(fncallrest.repeated().at_least(1))
+        .map(|(atom, rest)| FnCall(atom, rest));
+
+    let prefixstart = choice((
+        functioncall.clone().map(PrefixStart::FnCall),
+        atomexpr.map(PrefixStart::Atom),
     ));
 
     let var = choice((
         name.map(Var::Simple),
         prefixstart
             .clone()
-            .then(prefixmid.clone().repeated().at_least(1))
+            .then(infix.clone().repeated().at_least(1))
             .map(|(start, indices)| Var::Indexed(start, indices)),
     ));
+
+    let _prefixexpr = prefixstart
+        .then(infix.repeated())
+        .map(|(start, indices)| PrefixExpr(start, indices));
 
     let varlist = list(var.clone(), J![,]).map(VarList);
 
@@ -389,12 +402,6 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
     )));
 
     expr().define(todo());
-
-    prefixexpr().define(
-        prefixstart
-            .then(prefixmid.repeated())
-            .map(|(start, indices)| PrefixExpr(start, indices)),
-    );
 
     block()
 }
