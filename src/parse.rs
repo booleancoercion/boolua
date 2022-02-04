@@ -84,34 +84,20 @@ pub enum Args {
 }
 
 #[derive(Clone, Debug)]
-pub enum AtomExpr {
-    Parend(Box<Expr>),
-    Name(Name),
-}
-
-#[derive(Clone, Debug)]
-pub enum CallOrMethod {
-    Call(Args),
-    Method(Name, Args),
-}
-
-#[derive(Clone, Debug)]
-pub struct FnCall(AtomExpr, Vec<(Vec<Expr>, CallOrMethod)>);
-
-#[derive(Clone, Debug)]
-pub enum PrefixStart {
-    FnCall(FnCall),
-    Atom(AtomExpr),
-}
+pub struct FnCall(PrefixExpr, Option<Name>, Args);
 
 #[derive(Clone, Debug)]
 pub enum Var {
     Simple(Name),
-    Indexed(PrefixStart, Vec<Expr>),
+    Indexed(PrefixExpr, Expr),
 }
 
 #[derive(Clone, Debug)]
-pub struct PrefixExpr(PrefixStart, Vec<Expr>);
+pub enum PrefixExpr {
+    Var(Box<Var>),
+    FnCall(Box<FnCall>),
+    Parend(Box<Expr>),
+}
 
 #[derive(Clone, Debug)]
 pub struct FnDef(FnBody);
@@ -138,35 +124,18 @@ pub enum Field {
     Expr(Expr),
 }
 
+#[rustfmt::skip]
 #[derive(Clone, Copy, Debug)]
 pub enum BinOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    FloorDiv,
-    Exp,
-    Mod,
-    BitAnd,
-    BitXor,
-    BitOr,
-    RightShift,
-    LeftShift,
-    Concat,
-    Less,
-    LessEq,
-    Eq,
-    NEq,
-    And,
-    Or,
+    Add, Sub, Mul, Div, FloorDiv, Exp, Mod,
+    BitAnd, BitXor, BitOr, RightShift, LeftShift,
+    Concat, Less, LessEq, Eq, NEq, And, Or,
 }
 
+#[rustfmt::skip]
 #[derive(Clone, Copy, Debug)]
 pub enum UnOp {
-    Minus,
-    Not,
-    Length,
-    BitNot,
+    Minus, Not, Length, BitNot,
 }
 
 #[derive(Clone, Debug)]
@@ -288,21 +257,11 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
     let atomexpr = choice((
         expr()
             .delimited_by(T!['('], T![')'])
-            .map(|expr| AtomExpr::Parend(Box::new(expr))),
-        name.map(AtomExpr::Name),
+            .map(|expr| PrefixExpr::Parend(Box::new(expr))),
+        name.map(|name| PrefixExpr::Var(Box::new(Var::Simple(name)))),
     ));
 
-    let callormethod =
-        (J![:].ignore_then(name))
-            .or_not()
-            .then(args.clone())
-            .map(|(nameopt, args)| {
-                if let Some(name) = nameopt {
-                    CallOrMethod::Method(name, args)
-                } else {
-                    CallOrMethod::Call(args)
-                }
-            });
+    let callormethod = (J![:].ignore_then(name)).or_not().then(args.clone());
 
     let infix = choice((
         expr().delimited_by(T!['['], T![']']),
@@ -311,27 +270,44 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let fncallrest = infix.clone().repeated().then(callormethod);
 
+    let foldinfix = |prefix, infix| PrefixExpr::Var(Box::new(Var::Indexed(prefix, infix)));
+    let foldinfixes = move |prefix, infixes: Vec<Expr>| infixes.into_iter().fold(prefix, foldinfix);
+
     let functioncall = atomexpr
         .clone()
-        .then(fncallrest.repeated().at_least(1))
-        .map(|(atom, rest)| FnCall(atom, rest));
+        .then(fncallrest.clone())
+        .map(move |(prefix, (infixes, (nameopt, args)))| {
+            let prefix = foldinfixes(prefix, infixes);
+            FnCall(prefix, nameopt, args)
+        })
+        .then(fncallrest.repeated())
+        .foldl(move |fncall, (infixes, (nameopt, args))| {
+            let prefix = PrefixExpr::FnCall(Box::new(fncall));
+            let prefix = foldinfixes(prefix, infixes);
+            FnCall(prefix, nameopt, args)
+        });
 
     let prefixstart = choice((
-        functioncall.clone().map(PrefixStart::FnCall),
-        atomexpr.map(PrefixStart::Atom),
+        functioncall
+            .clone()
+            .map(|fncall| PrefixExpr::FnCall(Box::new(fncall))),
+        atomexpr,
     ));
 
     let var = choice((
         name.map(Var::Simple),
         prefixstart
             .clone()
-            .then(infix.clone().repeated().at_least(1))
-            .map(|(start, indices)| Var::Indexed(start, indices)),
+            .then(infix.clone())
+            .map(|(prefix, infix)| Var::Indexed(prefix, infix))
+            .then(infix.clone().repeated())
+            .foldl(|var, infix| {
+                let prefix = PrefixExpr::Var(Box::new(var));
+                Var::Indexed(prefix, infix)
+            }),
     ));
 
-    let _prefixexpr = prefixstart
-        .then(infix.repeated())
-        .map(|(start, indices)| PrefixExpr(start, indices));
+    let _prefixexpr = prefixstart.then(infix.repeated()).foldl(foldinfix);
 
     let varlist = list(var.clone(), J![,]).map(VarList);
 
