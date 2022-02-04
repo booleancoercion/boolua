@@ -5,13 +5,13 @@ use crate::lex::Token;
 use chumsky::prelude::*;
 use chumsky::recursive::Recursive;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Block {
     stmts: Vec<Stmt>,
     ret: Option<RetStmt>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Stmt {
     Empty,
     Assignment(VarList, ExprList),
@@ -30,37 +30,37 @@ pub enum Stmt {
     LocalAssignment(AttNameList, Option<ExprList>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AttNameList(Vec<(Name, Attrib)>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Attrib(Option<Name>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RetStmt(Option<ExprList>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Label(Name);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FnName(Vec<Name>, Option<Name>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VarList(Vec<Var>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Var {
     Simple(Name),
-    TableElem(PrefixExpr, Expr),
+    Indexed(PrefixStart, Vec<Expr>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NameList(Vec<Name>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ExprList(Vec<Expr>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Expr {
     Nil,
     False,
@@ -82,14 +82,17 @@ pub enum Expr {
     },
 }
 
-#[derive(Clone)]
-pub enum PrefixExpr {
-    Var(Box<Var>),
+#[derive(Clone, Debug)]
+pub enum PrefixStart {
     FnCall(Box<FnCall>),
     Parend(Box<Expr>),
+    Name(Name),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+pub struct PrefixExpr(PrefixStart, Vec<Expr>);
+
+#[derive(Clone, Debug)]
 pub enum FnCall {
     Free {
         function: PrefixExpr,
@@ -102,39 +105,39 @@ pub enum FnCall {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Args {
     List(Option<ExprList>),
     TableCtor(TableCtor),
     Str(String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FnDef(FnBody);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FnBody(Option<ParList>, Block);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ParList {
     Params(NameList, bool),
     VarArgs,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TableCtor(Option<FieldList>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FieldList(Vec<Field>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Field {
     ExprExpr(Expr, Expr),
     NameExpr(Name, Expr),
     Expr(Expr),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum BinOp {
     Add,
     Sub,
@@ -157,7 +160,7 @@ pub enum BinOp {
     Or,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum UnOp {
     Minus,
     Not,
@@ -165,31 +168,13 @@ pub enum UnOp {
     BitNot,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Name(pub String);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Num {
     Int(i64),
     Float(f64),
-}
-
-macro_rules! declare {
-    ($ident:ident) => {
-        let mut $ident = Recursive::declare();
-
-        let $ident = || $ident.clone();
-    };
-
-    ($($ident:ident),*) => {
-        $(
-            let $ident = Recursive::declare();
-        )*
-
-        $(
-            let $ident = || $ident.clone();
-        )*
-    };
 }
 
 macro_rules! J {
@@ -206,8 +191,8 @@ macro_rules! J {
 
 fn list<O, E, T>(
     parser: impl Parser<Token, O, Error = E> + Clone,
-    delim: impl Parser<Token, T, Error = E>,
-) -> impl Parser<Token, Vec<O>, Error = E>
+    delim: impl Parser<Token, T, Error = E> + Clone,
+) -> impl Parser<Token, Vec<O>, Error = E> + Clone
 where
     E: chumsky::Error<Token>,
 {
@@ -219,45 +204,132 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let litstring = todo();
 
-    declare!(
-        block,
-        stmt,
-        attnamelist,
-        attrib,
-        retstmt,
-        label,
-        funcname,
-        varlist,
-        var,
-        namelist,
-        exprlist,
-        expr,
-        prefixexpr,
-        functioncall,
-        args,
-        functiondef,
-        funcbody,
-        parlist,
-        tableconstructor,
-        fieldlist,
-        field
-    );
+    let stmt = Recursive::declare();
+    let expr = Recursive::declare();
+    let prefixexpr = Recursive::declare();
 
-    block().define(
-        stmt()
-            .repeated()
-            .then(retstmt().or_not())
-            .map(|(stmts, ret)| Block { stmts, ret }),
-    );
+    let stmt = || stmt.clone();
+    let expr = || expr.clone();
+    let prefixexpr = || prefixexpr.clone();
+
+    let namelist = list(name, J![,]).map(NameList);
+
+    let exprlist = list(expr(), J![,]).map(ExprList);
+
+    let fieldsep = J![,].or(J![;]);
+
+    let field = choice((
+        expr()
+            .delimited_by(T!['['], T![']'])
+            .then_ignore(J![=])
+            .then(expr())
+            .map(|(expr1, expr2)| Field::ExprExpr(expr1, expr2)),
+        name.then_ignore(J![=])
+            .then(expr())
+            .map(|(name, expr)| Field::NameExpr(name, expr)),
+        expr().map(Field::Expr),
+    ));
+
+    let fieldlist = list(field, fieldsep)
+        .then_ignore(fieldsep.or_not())
+        .map(FieldList);
+
+    let tableconstructor = fieldlist
+        .or_not()
+        .delimited_by(T!['{'], T!['}'])
+        .map(TableCtor);
+
+    let args = choice((
+        exprlist
+            .clone()
+            .or_not()
+            .delimited_by(T!['('], T![')'])
+            .map(Args::List),
+        tableconstructor.map(Args::TableCtor),
+        litstring.map(Args::Str),
+    ));
+
+    let functioncall = choice((
+        prefixexpr()
+            .then(args.clone())
+            .map(|(function, args)| FnCall::Free { function, args }),
+        prefixexpr()
+            .then_ignore(J![:])
+            .then(name)
+            .then(args)
+            .map(|((table, name), args)| FnCall::Method { table, name, args }),
+    ));
+
+    let parlist = choice((
+        namelist
+            .clone()
+            .then(J![,, ...].or_not())
+            .map(|(namelist, opt)| ParList::Params(namelist, opt.is_some())),
+        J![...].to(ParList::VarArgs),
+    ));
+
+    let retstmt = J![return]
+        .ignore_then(exprlist.clone().or_not())
+        .then_ignore(J![;].or_not())
+        .map(RetStmt);
+
+    let block = stmt()
+        .repeated()
+        .then(retstmt.or_not())
+        .map(|(stmts, ret)| Block { stmts, ret });
+    let block = || block.clone();
+
+    let funcbody = parlist
+        .or_not()
+        .delimited_by(T!['('], T![')'])
+        .then(block())
+        .then_ignore(J![end])
+        .map(|(optparlist, block)| FnBody(optparlist, block));
+
+    let _functiondef = J![function].ignore_then(funcbody.clone()).map(FnDef);
+
+    let attrib = name.delimited_by(T![<], T![>]).or_not().map(Attrib);
+    let attnamelist = list(name.then(attrib), J![,]).map(AttNameList);
+
+    let label = name.delimited_by(T![::], T![::]).map(Label);
+
+    let funcname = list(name, J![.])
+        .then(J![:].ignore_then(name).or_not())
+        .map(|(names, optname)| FnName(names, optname));
+
+    let prefixstart = choice((
+        functioncall
+            .clone()
+            .map(|fncall| PrefixStart::FnCall(Box::new(fncall))),
+        expr()
+            .delimited_by(T!['('], T![')'])
+            .map(|expr| PrefixStart::Parend(Box::new(expr))),
+        name.map(PrefixStart::Name),
+    ));
+
+    let prefixmid = choice((
+        expr().delimited_by(T!['['], T![']']),
+        J![.].ignore_then(name).map(|name| Expr::Str(name.0)),
+    ));
+
+    let var = choice((
+        name.map(Var::Simple),
+        prefixstart
+            .clone()
+            .then(prefixmid.clone().repeated().at_least(1))
+            .map(|(start, indices)| Var::Indexed(start, indices)),
+    ));
+
+    let varlist = list(var.clone(), J![,]).map(VarList);
 
     stmt().define(choice((
         J![;].to(Stmt::Empty),
-        varlist()
+        varlist
             .then_ignore(J![=])
-            .then(exprlist())
+            .then(exprlist.clone())
             .map(|(vars, exprs)| Stmt::Assignment(vars, exprs)),
-        functioncall().map(Stmt::FnCall),
-        label().map(Stmt::Label),
+        functioncall.clone().map(Stmt::FnCall),
+        label.map(Stmt::Label),
         J![break].to(Stmt::Break),
         J![goto].ignore_then(name).map(Stmt::Goto),
         block().delimited_by(T![do], T![end]).map(Stmt::Do),
@@ -297,138 +369,32 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
                 Stmt::ForNumeric(name, expr1, expr2, optexpr, block)
             }),
         J![for]
-            .ignore_then(namelist())
+            .ignore_then(namelist.clone())
             .then_ignore(J![in])
-            .then(exprlist())
+            .then(exprlist.clone())
             .then(block().delimited_by(T![do], T![end]))
             .map(|((namelist, exprlist), block)| Stmt::ForGeneric(namelist, exprlist, block)),
         J![function]
-            .ignore_then(funcname())
-            .then(funcbody())
+            .ignore_then(funcname)
+            .then(funcbody.clone())
             .map(|(funcname, funcbody)| Stmt::FnDecl(funcname, funcbody)),
         J![local, function]
             .ignore_then(name)
-            .then(funcbody())
+            .then(funcbody)
             .map(|(name, funcbody)| Stmt::LocalFnDecl(name, funcbody)),
         J![local]
-            .ignore_then(attnamelist())
-            .then(J![=].ignore_then(exprlist()).or_not())
+            .ignore_then(attnamelist.clone())
+            .then(J![=].ignore_then(exprlist).or_not())
             .map(|(attnamelist, exprlist)| Stmt::LocalAssignment(attnamelist, exprlist)),
     )));
 
-    attnamelist().define(list(name.then(attrib()), J![,]).map(AttNameList));
-
-    attrib().define(name.delimited_by(T![<], T![>]).or_not().map(Attrib));
-
-    retstmt().define(
-        J![return]
-            .ignore_then(exprlist().or_not())
-            .then_ignore(J![;].or_not())
-            .map(RetStmt),
-    );
-
-    label().define(name.delimited_by(T![::], T![::]).map(Label));
-
-    funcname().define(
-        list(name, J![.])
-            .then(J![:].ignore_then(name).or_not())
-            .map(|(names, optname)| FnName(names, optname)),
-    );
-
-    varlist().define(list(var(), J![,]).map(VarList));
-
-    var().define(choice((
-        name.map(Var::Simple),
-        prefixexpr()
-            .then(expr().delimited_by(T!['['], T![']']))
-            .map(|(prefixexpr, expr)| Var::TableElem(prefixexpr, expr)),
-        prefixexpr()
-            .then_ignore(J![.])
-            .then(name)
-            .map(|(prefixexpr, name)| {
-                let expr = Expr::Str(name.0); // desugaring
-                Var::TableElem(prefixexpr, expr)
-            }),
-    )));
-
-    namelist().define(list(name, J![,]).map(NameList));
-
-    exprlist().define(list(expr(), J![,]).map(ExprList));
-
     expr().define(todo());
 
-    prefixexpr().define(choice((
-        var().map(|var| PrefixExpr::Var(Box::new(var))),
-        functioncall().map(|fncall| PrefixExpr::FnCall(Box::new(fncall))),
-        expr()
-            .delimited_by(T!['('], T![')'])
-            .map(|expr| PrefixExpr::Parend(Box::new(expr))),
-    )));
-
-    functioncall().define(choice((
-        prefixexpr()
-            .then(args())
-            .map(|(function, args)| FnCall::Free { function, args }),
-        prefixexpr()
-            .then_ignore(J![:])
-            .then(name)
-            .then(args())
-            .map(|((table, name), args)| FnCall::Method { table, name, args }),
-    )));
-
-    args().define(choice((
-        exprlist()
-            .or_not()
-            .delimited_by(T!['('], T![')'])
-            .map(Args::List),
-        tableconstructor().map(Args::TableCtor),
-        litstring.map(Args::Str),
-    )));
-
-    functiondef().define(J![function].ignore_then(funcbody()).map(FnDef));
-
-    funcbody().define(
-        parlist()
-            .or_not()
-            .delimited_by(T!['('], T![')'])
-            .then(block())
-            .then_ignore(J![end])
-            .map(|(optparlist, block)| FnBody(optparlist, block)),
+    prefixexpr().define(
+        prefixstart
+            .then(prefixmid.repeated())
+            .map(|(start, indices)| PrefixExpr(start, indices)),
     );
-
-    parlist().define(choice((
-        namelist()
-            .then(J![,, ...].or_not())
-            .map(|(namelist, opt)| ParList::Params(namelist, opt.is_some())),
-        J![...].to(ParList::VarArgs),
-    )));
-
-    tableconstructor().define(
-        fieldlist()
-            .or_not()
-            .delimited_by(T!['{'], T!['}'])
-            .map(TableCtor),
-    );
-
-    let fieldsep = J![,].or(J![;]);
-
-    fieldlist().define(
-        list(field(), fieldsep)
-            .then_ignore(fieldsep.or_not())
-            .map(FieldList),
-    );
-
-    field().define(choice((
-        expr()
-            .delimited_by(T!['['], T![']'])
-            .then_ignore(J![=])
-            .then(expr())
-            .map(|(expr1, expr2)| Field::ExprExpr(expr1, expr2)),
-        name.then_ignore(J![=])
-            .then(expr())
-            .map(|(name, expr)| Field::NameExpr(name, expr)),
-        expr().map(Field::Expr),
-    )));
 
     block()
 }
