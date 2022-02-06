@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::lex::Token;
+use crate::lex::{string, Token};
 
 use chumsky::prelude::*;
 use chumsky::recursive::Recursive;
@@ -60,7 +60,7 @@ pub enum Expr {
     False,
     True,
     Num(Num),
-    Str(String),
+    Str(Vec<u8>),
     VarArgs,
     FnDef(FnDef),
     Prefix(PrefixExpr),
@@ -80,7 +80,7 @@ pub enum Expr {
 pub enum Args {
     List(Option<ExprList>),
     TableCtor(TableCtor),
-    Str(String),
+    Str(Vec<u8>),
 }
 
 #[derive(Clone, Debug)]
@@ -166,13 +166,28 @@ fn list<O, E, T>(
 where
     E: chumsky::Error<Token>,
 {
-    parser.clone().chain(delim.ignore_then(parser).repeated())
+    parser.separated_by(delim).at_least(1)
 }
 
 pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> + '_ {
     let name = J![ident].map_with_span(|_, span: Range<usize>| Name(source[span].to_owned()));
 
-    let litstring = todo();
+    let litstring = choice((
+        J![shortstring]
+            .map_with_span(|_, span: crate::Span| {
+                let innerspan = span.start + 1..span.end - 1; // remove "" or ''
+                string::parse_short_string(&source[innerspan])
+            })
+            .validate(|(bytes, errors), _, report| {
+                for error in &errors {
+                    todo!() // report error
+                }
+
+                (bytes, errors)
+            })
+            .map(|(bytes, _)| bytes),
+        J![longstring].ignore_then(todo()),
+    ));
 
     let stmt = Recursive::declare();
     let expr = Recursive::declare();
@@ -265,7 +280,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let infix = choice((
         expr().delimited_by(T!['['], T![']']),
-        J![.].ignore_then(name).map(|name| Expr::Str(name.0)),
+        J![.].ignore_then(name).map(|name| Expr::Str(name.0.into())),
     ));
 
     let fncallrest = infix.clone().repeated().then(callormethod);
