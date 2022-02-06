@@ -1,6 +1,5 @@
 use boolua::{lex::Token, T};
 
-use chumsky::Parser;
 use logos::Logos;
 
 use std::fs;
@@ -74,19 +73,4 @@ fn markov_lex() {
     ];
 
     assert_eq!(tokens_lexed, tokens_hardcoded)
-}
-
-#[test]
-fn markov_parse() {
-    let code = load_code();
-
-    let tokens = Token::lexer(&code).spanned();
-    let stream = chumsky::Stream::from_iter(code.len()..code.len() + 1, tokens);
-
-    let parsed = boolua::parse::chunk(&code)
-        .then(chumsky::primitive::end())
-        .parse(stream);
-
-    let _ = dbg!(parsed);
-    panic!()
 }

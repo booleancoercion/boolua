@@ -5,12 +5,27 @@ use logos::Logos;
 use std::iter::{self, Once};
 use std::slice;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ParseLitError {
-    InvalidEscape,
-    ByteLitOverflow,
-    Utf8Overflow,
-    UnescapedNewline,
+// Original code by kestrer! :)
+pub fn normalize_newlines(bytes: &mut Vec<u8>) {
+    let len = bytes.len();
+    let mut del = 0;
+
+    for i in 0..len {
+        if bytes[i..].starts_with(b"\r\n") || bytes[i..].starts_with(b"\n\r") {
+            del += 1;
+            bytes[i] = b'\n';
+            bytes[i + 1] = b'\n';
+        } else {
+            if bytes[i] == b'\r' {
+                bytes[i] = b'\n';
+            }
+            bytes[i - del] = bytes[i];
+        }
+    }
+
+    if del > 0 {
+        bytes.truncate(len - del);
+    }
 }
 
 pub fn parse_short_string(lit: &str) -> (Vec<u8>, Vec<Spanned<ParseLitError>>) {
@@ -150,6 +165,25 @@ impl<'a> From<slice::Iter<'a, u8>> for StringTokenIterator<'a> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ParseLitError {
+    InvalidEscape,
+    ByteLitOverflow,
+    Utf8Overflow,
+    UnescapedNewline,
+}
+
+impl ParseLitError {
+    pub fn get_message(self) -> &'static str {
+        match self {
+            Self::InvalidEscape => "invalid escape character",
+            Self::ByteLitOverflow => "overflow in byte literal",
+            Self::Utf8Overflow => "overflow in utf-8 literal",
+            Self::UnescapedNewline => "newline without escaping `\\` or `\\z`",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,6 +202,30 @@ mod tests {
             let (bytes, errors) = parse_short_string(input);
             assert!(errors.is_empty());
             assert_eq!(&bytes, output)
+        }
+    }
+
+    #[test]
+    pub fn normalization() {
+        let tests: Vec<(Vec<u8>, &[u8])> = vec![
+            (b"\r\n\r\n\r\n\r\n".to_vec(), b"\n\n\n\n"),
+            (
+                b"hello\nhi\r\nsalut\n\rbye\r".to_vec(),
+                b"hello\nhi\nsalut\nbye\n",
+            ),
+            (
+                b"word\r\rword\n\nword\r\n\n\rword\n\r\r\n".to_vec(),
+                b"word\n\nword\n\nword\n\nword\n\n",
+            ),
+            (b"\n\r\n\r\n\r\n\r\n\r".to_vec(), b"\n\n\n\n\n"),
+            (b"\r\r\r\r\r".to_vec(), b"\n\n\n\n\n"),
+            (b"".to_vec(), b""),
+            (b"no newlines here".to_vec(), b"no newlines here"),
+        ];
+
+        for (mut input, expected) in tests {
+            normalize_newlines(&mut input);
+            assert_eq!(&input, expected)
         }
     }
 }

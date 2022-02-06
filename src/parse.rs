@@ -1,9 +1,10 @@
-use std::ops::Range;
-
 use crate::lex::{string, Token};
+use crate::Span;
 
 use chumsky::prelude::*;
 use chumsky::recursive::Recursive;
+
+use std::ops::Range;
 
 #[derive(Clone, Debug)]
 pub struct Block {
@@ -174,19 +175,37 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let litstring = choice((
         J![shortstring]
-            .map_with_span(|_, span: crate::Span| {
+            .map_with_span(|_, span: Span| {
                 let innerspan = span.start + 1..span.end - 1; // remove "" or ''
                 string::parse_short_string(&source[innerspan])
             })
-            .validate(|(bytes, errors), _, report| {
+            .validate(|(bytes, errors), span: Span, report| {
                 for error in &errors {
-                    todo!() // report error
+                    let offset = span.start + 1;
+                    let newspan = error.span.start + offset..error.span.end + offset;
+
+                    report(Simple::custom(newspan, error.data.get_message()))
                 }
 
                 (bytes, errors)
             })
             .map(|(bytes, _)| bytes),
-        J![longstring].ignore_then(todo()),
+        J![longstring].map_with_span(|_, span: Span| {
+            let slice = &source[span];
+            // unwrapping is fine because we know there's a [=*[ delimiter at the start
+            // of the long string literal. coincidentally, the index found
+            // is also the number of `=`.
+            let n = slice[1..].find('[').unwrap() + 2;
+
+            let literal = &slice[n..slice.len() - n];
+            let mut bytes = literal.as_bytes().to_owned();
+            string::normalize_newlines(&mut bytes);
+            if bytes.first() == Some(&b'\n') {
+                bytes.remove(0);
+            }
+
+            bytes
+        }),
     ));
 
     let stmt = Recursive::declare();
