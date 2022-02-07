@@ -141,7 +141,6 @@ macro_rules! T {
     (^) => {<T![]>::Caret};
     (#) => {<T![]>::Pound};
     (&) => {<T![]>::Amp};
-    (~) => {<T![]>::Tilde};
     (|) => {<T![]>::Pipe};
     (<<) => {<T![]>::DLAngle};
     (>>) => {<T![]>::DRAngle};
@@ -166,6 +165,7 @@ macro_rules! T {
     (.) => {<T![]>::Period};
     (..) => {<T![]>::DPeriod};
     (...) => {<T![]>::TPeriod};
+    (~) => {<T![]>::Tilde};
 
     (ident) => {<T![]>::Ident};
     (shortstring) => {<T![]>::ShortString};

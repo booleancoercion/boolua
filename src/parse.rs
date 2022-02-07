@@ -66,15 +66,8 @@ pub enum Expr {
     FnDef(FnDef),
     Prefix(PrefixExpr),
     TableCtor(TableCtor),
-    Binary {
-        head: Box<Expr>,
-        op: BinOp,
-        tail: Box<Expr>,
-    },
-    Unary {
-        op: UnOp,
-        expr: Box<Expr>,
-    },
+    Binary(Box<Self>, BinOp, Box<Self>),
+    Unary(UnOp, Box<Self>),
 }
 
 #[derive(Clone, Debug)]
@@ -130,7 +123,8 @@ pub enum Field {
 pub enum BinOp {
     Add, Sub, Mul, Div, FloorDiv, Exp, Mod,
     BitAnd, BitXor, BitOr, RightShift, LeftShift,
-    Concat, Less, LessEq, Eq, NEq, And, Or,
+    Concat, Less, LessEq, Greater, GreaterEq, Eq,
+    NEq, And, Or,
 }
 
 #[rustfmt::skip]
@@ -149,15 +143,9 @@ pub enum Num {
 }
 
 macro_rules! J {
-    ($tok:tt) => {
-        just(T![$tok])
+    ($($tok:tt)*) => {
+        just(T![$($tok)*])
     };
-
-    ($($tok:tt),*) => {
-        just([$(
-            T![$tok]
-        ),*])
-    }
 }
 
 fn list<O, E, T>(
@@ -247,14 +235,14 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
             .or_not()
             .delimited_by(T!['('], T![')'])
             .map(Args::List),
-        tableconstructor.map(Args::TableCtor),
+        tableconstructor.clone().map(Args::TableCtor),
         litstring.map(Args::Str),
     ));
 
     let parlist = choice((
         namelist
             .clone()
-            .then(J![,, ...].or_not())
+            .then(just([T![,], T![...]]).or_not())
             .map(|(namelist, opt)| ParList::Params(namelist, opt.is_some())),
         J![...].to(ParList::VarArgs),
     ));
@@ -277,7 +265,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         .then_ignore(J![end])
         .map(|(optparlist, block)| FnBody(optparlist, block));
 
-    let _functiondef = J![function].ignore_then(funcbody.clone()).map(FnDef);
+    let functiondef = J![function].ignore_then(funcbody.clone()).map(FnDef);
 
     let attrib = name.delimited_by(T![<], T![>]).or_not().map(Attrib);
     let attnamelist = list(name.then(attrib), J![,]).map(AttNameList);
@@ -341,7 +329,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
             }),
     ));
 
-    let _prefixexpr = prefixstart.then(infix.repeated()).foldl(foldinfix);
+    let prefixexpr = prefixstart.then(infix.repeated()).foldl(foldinfix);
 
     let varlist = list(var.clone(), J![,]).map(VarList);
 
@@ -401,7 +389,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
             .ignore_then(funcname)
             .then(funcbody.clone())
             .map(|(funcname, funcbody)| Stmt::FnDecl(funcname, funcbody)),
-        J![local, function]
+        just([T![local], T![function]])
             .ignore_then(name)
             .then(funcbody)
             .map(|(name, funcbody)| Stmt::LocalFnDecl(name, funcbody)),
@@ -411,7 +399,90 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
             .map(|(attnamelist, exprlist)| Stmt::LocalAssignment(attnamelist, exprlist)),
     )));
 
-    expr().define(todo());
+    let atomexpr = choice((
+        J![nil].to(Expr::Nil),
+        J![false].to(Expr::False),
+        J![true].to(Expr::True),
+        J![numlit].ignore_then(todo()),
+        litstring.map(Expr::Str),
+        J![...].to(Expr::VarArgs),
+        functiondef.map(Expr::FnDef),
+        prefixexpr.map(Expr::Prefix),
+        tableconstructor.map(Expr::TableCtor),
+    ));
+
+    let exponent = binary_right(atomexpr, J![^].to(BinOp::Exp));
+
+    let op = choice((
+        J![not].to(UnOp::Not),
+        J![#].to(UnOp::Length),
+        J![-].to(UnOp::Minus),
+        J![~].to(UnOp::BitNot),
+    ));
+    let unary = op
+        .repeated()
+        .then(exponent)
+        .foldr(|unop, acc| Expr::Unary(unop, Box::new(acc)));
+
+    let op = choice((
+        J![*].to(BinOp::Mul),
+        J![/].to(BinOp::Div),
+        J!["//"].to(BinOp::FloorDiv),
+        J![%].to(BinOp::Mod),
+    ));
+    let multiplicative = binary_left(unary, op);
+
+    let concat = binary_right(multiplicative, J![..].to(BinOp::Concat));
+
+    let op = choice((J![>>].to(BinOp::RightShift), J![<<].to(BinOp::LeftShift)));
+    let bitshift = binary_left(concat, op);
+
+    let bitand = binary_left(bitshift, J![&].to(BinOp::BitAnd));
+
+    let bitxor = binary_left(bitand, J![~].to(BinOp::BitXor));
+
+    let bitor = binary_left(bitxor, J![|].to(BinOp::BitOr));
+
+    let op = choice((
+        J![<].to(BinOp::Less),
+        J![>].to(BinOp::Greater),
+        J![<=].to(BinOp::LessEq),
+        J![>=].to(BinOp::GreaterEq),
+        J![~=].to(BinOp::NEq),
+        J![==].to(BinOp::Eq),
+    ));
+    let comparison = binary_left(bitor, op);
+
+    let logic_and = binary_left(comparison, J![and].to(BinOp::And));
+
+    let logic_or = binary_left(logic_and, J![or].to(BinOp::Or));
+
+    expr().define(logic_or);
 
     block()
+}
+
+fn binary_left<E>(
+    previous: impl Parser<Token, Expr, Error = E> + Clone,
+    operators: impl Parser<Token, BinOp, Error = E> + Clone,
+) -> impl Parser<Token, Expr, Error = E> + Clone
+where
+    E: chumsky::Error<Token>,
+{
+    previous
+        .clone()
+        .then(operators.then(previous).repeated())
+        .foldl(|acc, (op, expr)| Expr::Binary(Box::new(acc), op, Box::new(expr)))
+}
+
+fn binary_right<E>(
+    previous: impl Parser<Token, Expr, Error = E> + Clone,
+    operators: impl Parser<Token, BinOp, Error = E> + Clone,
+) -> impl Parser<Token, Expr, Error = E> + Clone
+where
+    E: chumsky::Error<Token>,
+{
+    (previous.clone().then(operators).repeated())
+        .then(previous)
+        .foldr(|(expr, op), acc| Expr::Binary(Box::new(expr), op, Box::new(acc)))
 }
