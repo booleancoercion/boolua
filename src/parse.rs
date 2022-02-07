@@ -432,7 +432,10 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
     ));
     let multiplicative = binary_left(unary, op);
 
-    let concat = binary_right(multiplicative, J![..].to(BinOp::Concat));
+    let op = choice((J![+].to(BinOp::Add), J![-].to(BinOp::Sub)));
+    let additive = binary_left(multiplicative, op);
+
+    let concat = binary_right(additive, J![..].to(BinOp::Concat));
 
     let op = choice((J![>>].to(BinOp::RightShift), J![<<].to(BinOp::LeftShift)));
     let bitshift = binary_left(concat, op);
