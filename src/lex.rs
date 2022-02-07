@@ -15,9 +15,11 @@ pub enum Token {
     #[regex(r"\[=*\[", |x| longstring(x, x.slice().len() - 2))]
     LongString,
 
-    #[regex(r"\d+(\.\d+)?([eE]\d+)?")]
-    #[regex(r"0[xX][[:xdigit:]]+(\.[[:xdigit:]]+)?([pP][[:xdigit:]]+)?")]
-    NumLit,
+    #[regex(r"(\d*\.\d+|\d+\.\d*)([eE][+-]?\d+])?")]
+    DecLit,
+
+    #[regex(r"0[xX]([[:xdigit:]]*\.[[:xdigit:]]+|[[:xdigit:]]+\.[[:xdigit:]]*)([pP][+-]?[[:xdigit:]]+])?")]
+    HexLit,
 
     #[token("and")]       And,
     #[token("break")]     Break,
@@ -170,7 +172,8 @@ macro_rules! T {
     (ident) => {<T![]>::Ident};
     (shortstring) => {<T![]>::ShortString};
     (longstring) => {<T![]>::LongString};
-    (numlit) => {<T![]>::NumLit};
+    (declit) => {<T![]>::DecLit};
+    (hexlit) => {<T![]>::HexLit};
 
     () => {$crate::lex::Token};
 }

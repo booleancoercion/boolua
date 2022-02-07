@@ -210,7 +210,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let field = choice((
         expr()
-            .delimited_by(T!['['], T![']'])
+            .delimited_by(J!['['], J![']'])
             .then_ignore(J![=])
             .then(expr())
             .map(|(expr1, expr2)| Field::ExprExpr(expr1, expr2)),
@@ -226,14 +226,14 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let tableconstructor = fieldlist
         .or_not()
-        .delimited_by(T!['{'], T!['}'])
+        .delimited_by(J!['{'], J!['}'])
         .map(TableCtor);
 
     let args = choice((
         exprlist
             .clone()
             .or_not()
-            .delimited_by(T!['('], T![')'])
+            .delimited_by(J!['('], J![')'])
             .map(Args::List),
         tableconstructor.clone().map(Args::TableCtor),
         litstring.map(Args::Str),
@@ -260,17 +260,17 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let funcbody = parlist
         .or_not()
-        .delimited_by(T!['('], T![')'])
+        .delimited_by(J!['('], J![')'])
         .then(block())
         .then_ignore(J![end])
         .map(|(optparlist, block)| FnBody(optparlist, block));
 
     let functiondef = J![function].ignore_then(funcbody.clone()).map(FnDef);
 
-    let attrib = name.delimited_by(T![<], T![>]).or_not().map(Attrib);
+    let attrib = name.delimited_by(J![<], J![>]).or_not().map(Attrib);
     let attnamelist = list(name.then(attrib), J![,]).map(AttNameList);
 
-    let label = name.delimited_by(T![::], T![::]).map(Label);
+    let label = name.delimited_by(J![::], J![::]).map(Label);
 
     let funcname = list(name, J![.])
         .then(J![:].ignore_then(name).or_not())
@@ -278,7 +278,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let atomexpr = choice((
         expr()
-            .delimited_by(T!['('], T![')'])
+            .delimited_by(J!['('], J![')'])
             .map(|expr| PrefixExpr::Parend(Box::new(expr))),
         name.map(|name| PrefixExpr::Var(Box::new(Var::Simple(name)))),
     ));
@@ -286,7 +286,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
     let callormethod = (J![:].ignore_then(name)).or_not().then(args.clone());
 
     let infix = choice((
-        expr().delimited_by(T!['['], T![']']),
+        expr().delimited_by(J!['['], J![']']),
         J![.].ignore_then(name).map(|name| Expr::Str(name.0.into())),
     ));
 
@@ -343,13 +343,13 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         label.map(Stmt::Label),
         J![break].to(Stmt::Break),
         J![goto].ignore_then(name).map(Stmt::Goto),
-        block().delimited_by(T![do], T![end]).map(Stmt::Do),
+        block().delimited_by(J![do], J![end]).map(Stmt::Do),
         J![while]
             .ignore_then(expr())
-            .then(block().delimited_by(T![do], T![end]))
+            .then(block().delimited_by(J![do], J![end]))
             .map(|(expr, block)| Stmt::While(expr, block)),
         block()
-            .delimited_by(T![repeat], T![until])
+            .delimited_by(J![repeat], J![until])
             .then(expr())
             .map(|(block, expr)| Stmt::Repeat(block, expr)),
         J![if]
@@ -358,12 +358,12 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
                 block()
                     .then(
                         expr()
-                            .delimited_by(T![elseif], T![then])
+                            .delimited_by(J![elseif], J![then])
                             .then(block())
                             .repeated(),
                     )
                     .then(J![else].ignore_then(block()).or_not())
-                    .delimited_by(T![then], T![end]),
+                    .delimited_by(J![then], J![end]),
             )
             .map(|(condexpr, ((block, elseifvec), elseblock))| {
                 Stmt::If(condexpr, block, elseifvec, elseblock)
@@ -375,7 +375,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
             .then_ignore(J![,])
             .then(expr())
             .then(J![,].ignore_then(expr()).or_not())
-            .then(block().delimited_by(T![do], T![end]))
+            .then(block().delimited_by(J![do], J![end]))
             .map(|((((name, expr1), expr2), optexpr), block)| {
                 Stmt::ForNumeric(name, expr1, expr2, optexpr, block)
             }),
@@ -383,7 +383,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
             .ignore_then(namelist.clone())
             .then_ignore(J![in])
             .then(exprlist.clone())
-            .then(block().delimited_by(T![do], T![end]))
+            .then(block().delimited_by(J![do], J![end]))
             .map(|((namelist, exprlist), block)| Stmt::ForGeneric(namelist, exprlist, block)),
         J![function]
             .ignore_then(funcname)
@@ -399,11 +399,16 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
             .map(|(attnamelist, exprlist)| Stmt::LocalAssignment(attnamelist, exprlist)),
     )));
 
+    let numlit = choice((
+        J![declit].map_with_span(|_, span| todo!()),
+        J![hexlit].map_with_span(|_, span| todo!()),
+    ));
+
     let atomexpr = choice((
         J![nil].to(Expr::Nil),
         J![false].to(Expr::False),
         J![true].to(Expr::True),
-        J![numlit].ignore_then(todo()),
+        numlit.map(Expr::Num),
         litstring.map(Expr::Str),
         J![...].to(Expr::VarArgs),
         functiondef.map(Expr::FnDef),
