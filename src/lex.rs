@@ -15,10 +15,10 @@ pub enum Token {
     #[regex(r"\[=*\[", |x| longstring(x, x.slice().len() - 2))]
     LongString(usize),
 
-    #[regex(r"(\d*\.\d+|\d+\.\d*)([eE][+-]?\d+])?")]
+    #[regex(r"(\d+|\d*\.\d+|\d+\.\d*)([eE][+-]?\d+])?")]
     DecLit,
 
-    #[regex(r"0[xX]([[:xdigit:]]*\.[[:xdigit:]]+|[[:xdigit:]]+\.[[:xdigit:]]*)([pP][+-]?[[:xdigit:]]+])?")]
+    #[regex(r"0[xX]([[:xdigit:]]+|[[:xdigit:]]*\.[[:xdigit:]]+|[[:xdigit:]]+\.[[:xdigit:]]*)([pP][+-]?[[:xdigit:]]+])?")]
     HexLit,
 
     #[token("and")]       And,
