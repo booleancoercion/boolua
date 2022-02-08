@@ -7,68 +7,60 @@ expression: ast
 Block {
     stmts: [
         Assignment(
-            VarList(
-                [
-                    Simple(
-                        Name(
-                            "a",
+            [
+                Simple(
+                    Name(
+                        "a",
+                    ),
+                ),
+            ],
+            [
+                Binary(
+                    Num(
+                        Int(
+                            5,
                         ),
                     ),
-                ],
-            ),
-            ExprList(
-                [
-                    Binary(
-                        Num(
-                            Int(
-                                5,
-                            ),
-                        ),
-                        Add,
-                        Num(
-                            Int(
-                                10,
-                            ),
+                    Add,
+                    Num(
+                        Int(
+                            10,
                         ),
                     ),
-                ],
-            ),
+                ),
+            ],
         ),
         Assignment(
-            VarList(
-                [
-                    Simple(
-                        Name(
-                            "b",
+            [
+                Simple(
+                    Name(
+                        "b",
+                    ),
+                ),
+            ],
+            [
+                Binary(
+                    Num(
+                        Int(
+                            4,
                         ),
                     ),
-                ],
-            ),
-            ExprList(
-                [
+                    Exp,
                     Binary(
                         Num(
                             Int(
-                                4,
+                                7,
                             ),
                         ),
                         Exp,
-                        Binary(
-                            Num(
-                                Int(
-                                    7,
-                                ),
-                            ),
-                            Exp,
-                            Num(
-                                Int(
-                                    2,
-                                ),
+                        Num(
+                            Int(
+                                2,
                             ),
                         ),
                     ),
-                ],
-            ),
+                ),
+            ],
         ),
     ],
     ret: None,

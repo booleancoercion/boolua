@@ -14,15 +14,15 @@ use std::ops::Range;
 #[derive(Clone, Debug)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
-    pub ret: Option<RetStmt>,
+    pub ret: Option<Vec<Expr>>,
 }
 
 #[derive(Clone, Debug)]
 pub enum Stmt {
     Empty,
-    Assignment(VarList, ExprList),
+    Assignment(Vec<Var>, Vec<Expr>),
     FnCall(FnCall),
-    Label(Label),
+    Label(Name),
     Break,
     Goto(Name),
     Do(Block),
@@ -30,35 +30,17 @@ pub enum Stmt {
     Repeat(Block, Expr),
     If(Expr, Block, Vec<(Expr, Block)>, Option<Block>),
     ForNumeric(Name, Expr, Expr, Option<Expr>, Block),
-    ForGeneric(NameList, ExprList, Block),
-    FnDecl(FnName, FnBody),
-    LocalFnDecl(Name, FnBody),
-    LocalAssignment(AttNameList, Option<ExprList>),
+    ForGeneric(Vec<Name>, Vec<Expr>, Block),
+    FnDecl(FnName, Option<ParList>, Block),
+    LocalFnDecl(Name, Option<ParList>, Block),
+    LocalAssignment(Vec<(Name, Attrib)>, Option<Vec<Expr>>),
 }
-
-#[derive(Clone, Debug)]
-pub struct AttNameList(pub Vec<(Name, Attrib)>);
 
 #[derive(Clone, Debug)]
 pub struct Attrib(pub Option<Name>);
 
 #[derive(Clone, Debug)]
-pub struct RetStmt(pub Option<ExprList>);
-
-#[derive(Clone, Debug)]
-pub struct Label(pub Name);
-
-#[derive(Clone, Debug)]
 pub struct FnName(pub Vec<Name>, pub Option<Name>);
-
-#[derive(Clone, Debug)]
-pub struct VarList(pub Vec<Var>);
-
-#[derive(Clone, Debug)]
-pub struct NameList(pub Vec<Name>);
-
-#[derive(Clone, Debug)]
-pub struct ExprList(pub Vec<Expr>);
 
 #[derive(Clone, Debug)]
 pub enum Expr {
@@ -68,17 +50,17 @@ pub enum Expr {
     Num(Num),
     Str(Vec<u8>),
     VarArgs,
-    FnDef(FnDef),
+    FnDef(Option<ParList>, Block),
     Prefix(PrefixExpr),
-    TableCtor(TableCtor),
+    TableCtor(Vec<Field>),
     Binary(Box<Self>, BinOp, Box<Self>),
     Unary(UnOp, Box<Self>),
 }
 
 #[derive(Clone, Debug)]
 pub enum Args {
-    List(Option<ExprList>),
-    TableCtor(TableCtor),
+    List(Option<Vec<Expr>>),
+    TableCtor(Vec<Field>),
     Str(Vec<u8>),
 }
 
@@ -99,22 +81,10 @@ pub enum PrefixExpr {
 }
 
 #[derive(Clone, Debug)]
-pub struct FnDef(pub FnBody);
-
-#[derive(Clone, Debug)]
-pub struct FnBody(pub Option<ParList>, pub Block);
-
-#[derive(Clone, Debug)]
 pub enum ParList {
-    Params(NameList, bool),
+    Params(Vec<Name>, bool),
     VarArgs,
 }
-
-#[derive(Clone, Debug)]
-pub struct TableCtor(pub Option<FieldList>);
-
-#[derive(Clone, Debug)]
-pub struct FieldList(pub Vec<Field>);
 
 #[derive(Clone, Debug)]
 pub enum Field {
@@ -208,9 +178,9 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
     let stmt = || stmt.clone();
     let expr = || expr.clone();
 
-    let namelist = list(name, J![,]).map(NameList);
+    let namelist = list(name, J![,]);
 
-    let exprlist = list(expr(), J![,]).map(ExprList);
+    let exprlist = list(expr(), J![,]);
 
     let fieldsep = J![,].or(J![;]);
 
@@ -226,14 +196,10 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         expr().map(Field::Expr),
     ));
 
-    let fieldlist = list(field, fieldsep)
-        .then_ignore(fieldsep.or_not())
-        .map(FieldList);
-
-    let tableconstructor = fieldlist
-        .or_not()
-        .delimited_by(J!['{'], J!['}'])
-        .map(TableCtor);
+    let tableconstructor = field
+        .separated_by(fieldsep)
+        .allow_trailing()
+        .delimited_by(J!['{'], J!['}']);
 
     let args = choice((
         exprlist
@@ -254,9 +220,8 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
     ));
 
     let retstmt = J![return]
-        .ignore_then(exprlist.clone().or_not())
-        .then_ignore(J![;].or_not())
-        .map(RetStmt);
+        .ignore_then(expr().separated_by(J![,]))
+        .then_ignore(J![;].or_not());
 
     let block = stmt()
         .repeated()
@@ -268,15 +233,14 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         .or_not()
         .delimited_by(J!['('], J![')'])
         .then(block())
-        .then_ignore(J![end])
-        .map(|(optparlist, block)| FnBody(optparlist, block));
+        .then_ignore(J![end]);
 
-    let functiondef = J![function].ignore_then(funcbody.clone()).map(FnDef);
+    let functiondef = J![function].ignore_then(funcbody.clone());
 
     let attrib = name.delimited_by(J![<], J![>]).or_not().map(Attrib);
-    let attnamelist = list(name.then(attrib), J![,]).map(AttNameList);
+    let attnamelist = list(name.then(attrib), J![,]);
 
-    let label = name.delimited_by(J![::], J![::]).map(Label);
+    let label = name.delimited_by(J![::], J![::]);
 
     let funcname = list(name, J![.])
         .then(J![:].ignore_then(name).or_not())
@@ -337,7 +301,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
 
     let prefixexpr = prefixstart.then(infix.repeated()).foldl(foldinfix);
 
-    let varlist = list(var.clone(), J![,]).map(VarList);
+    let varlist = list(var.clone(), J![,]);
 
     stmt().define(choice((
         J![;].to(Stmt::Empty),
@@ -394,11 +358,11 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         J![function]
             .ignore_then(funcname)
             .then(funcbody.clone())
-            .map(|(funcname, funcbody)| Stmt::FnDecl(funcname, funcbody)),
+            .map(|(funcname, (parlist, block))| Stmt::FnDecl(funcname, parlist, block)),
         just([T![local], T![function]])
             .ignore_then(name)
             .then(funcbody)
-            .map(|(name, funcbody)| Stmt::LocalFnDecl(name, funcbody)),
+            .map(|(name, (parlist, block))| Stmt::LocalFnDecl(name, parlist, block)),
         J![local]
             .ignore_then(attnamelist.clone())
             .then(J![=].ignore_then(exprlist).or_not())
@@ -417,7 +381,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         numlit.map(Expr::Num),
         litstring.map(Expr::Str),
         J![...].to(Expr::VarArgs),
-        functiondef.map(Expr::FnDef),
+        functiondef.map(|(parlist, block)| Expr::FnDef(parlist, block)),
         prefixexpr.map(Expr::Prefix),
         tableconstructor.map(Expr::TableCtor),
     ));

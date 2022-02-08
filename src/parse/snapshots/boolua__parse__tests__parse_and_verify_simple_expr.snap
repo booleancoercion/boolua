@@ -7,52 +7,48 @@ expression: ast
 Block {
     stmts: [
         Assignment(
-            VarList(
-                [
-                    Simple(
-                        Name(
-                            "x",
+            [
+                Simple(
+                    Name(
+                        "x",
+                    ),
+                ),
+            ],
+            [
+                Binary(
+                    Prefix(
+                        Var(
+                            Simple(
+                                Name(
+                                    "a",
+                                ),
+                            ),
                         ),
                     ),
-                ],
-            ),
-            ExprList(
-                [
+                    Add,
                     Binary(
                         Prefix(
                             Var(
                                 Simple(
                                     Name(
-                                        "a",
+                                        "b",
                                     ),
                                 ),
                             ),
                         ),
-                        Add,
-                        Binary(
-                            Prefix(
-                                Var(
-                                    Simple(
-                                        Name(
-                                            "b",
-                                        ),
-                                    ),
-                                ),
-                            ),
-                            Mul,
-                            Prefix(
-                                Var(
-                                    Simple(
-                                        Name(
-                                            "c",
-                                        ),
+                        Mul,
+                        Prefix(
+                            Var(
+                                Simple(
+                                    Name(
+                                        "c",
                                     ),
                                 ),
                             ),
                         ),
                     ),
-                ],
-            ),
+                ),
+            ],
         ),
     ],
     ret: None,
