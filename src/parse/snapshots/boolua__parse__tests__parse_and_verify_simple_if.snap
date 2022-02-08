@@ -1,0 +1,54 @@
+---
+source: src/parse/tests.rs
+assertion_line: 17
+expression: ast
+
+---
+Block {
+    stmts: [
+        If(
+            True,
+            Block {
+                stmts: [
+                    FnCall(
+                        FnCall(
+                            Var(
+                                Simple(
+                                    Name(
+                                        "print",
+                                    ),
+                                ),
+                            ),
+                            None,
+                            List(
+                                Some(
+                                    ExprList(
+                                        [
+                                            Str(
+                                                [
+                                                    115,
+                                                    111,
+                                                    109,
+                                                    101,
+                                                    116,
+                                                    104,
+                                                    105,
+                                                    110,
+                                                    103,
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ],
+                ret: None,
+            },
+            [],
+            None,
+        ),
+    ],
+    ret: None,
+}

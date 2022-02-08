@@ -1,0 +1,59 @@
+---
+source: src/parse/tests.rs
+assertion_line: 18
+expression: ast
+
+---
+Block {
+    stmts: [
+        Assignment(
+            VarList(
+                [
+                    Simple(
+                        Name(
+                            "x",
+                        ),
+                    ),
+                ],
+            ),
+            ExprList(
+                [
+                    Binary(
+                        Prefix(
+                            Var(
+                                Simple(
+                                    Name(
+                                        "a",
+                                    ),
+                                ),
+                            ),
+                        ),
+                        Add,
+                        Binary(
+                            Prefix(
+                                Var(
+                                    Simple(
+                                        Name(
+                                            "b",
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            Mul,
+                            Prefix(
+                                Var(
+                                    Simple(
+                                        Name(
+                                            "c",
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ],
+            ),
+        ),
+    ],
+    ret: None,
+}
