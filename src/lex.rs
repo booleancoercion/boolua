@@ -13,7 +13,7 @@ pub enum Token {
     ShortString,
 
     #[regex(r"\[=*\[", |x| longstring(x, x.slice().len() - 2))]
-    LongString,
+    LongString(usize),
 
     #[regex(r"(\d*\.\d+|\d+\.\d*)([eE][+-]?\d+])?")]
     DecLit,
@@ -85,7 +85,7 @@ pub enum Token {
     Error,
 }
 
-fn longstring(lex: &mut Lexer<Token>, n: usize) -> bool {
+fn longstring(lex: &mut Lexer<Token>, n: usize) -> Result<usize, ()> {
     let mut looking_for = String::from("]");
     looking_for.push_str(&"=".repeat(n));
     looking_for.push(']');
@@ -93,16 +93,16 @@ fn longstring(lex: &mut Lexer<Token>, n: usize) -> bool {
     let offset = if let Some(offset) = lex.remainder().find(&looking_for) {
         offset
     } else {
-        return false;
+        return Err(());
     };
 
     lex.bump(offset + looking_for.len());
 
-    true
+    Ok(n)
 }
 
 fn longcomment(lex: &mut Lexer<Token>) -> Filter<()> {
-    if longstring(lex, lex.slice().len() - 4) {
+    if longstring(lex, lex.slice().len() - 4).is_ok() {
         Filter::Skip
     } else {
         Filter::Emit(())
@@ -171,7 +171,6 @@ macro_rules! T {
 
     (ident) => {<T![]>::Ident};
     (shortstring) => {<T![]>::ShortString};
-    (longstring) => {<T![]>::LongString};
     (declit) => {<T![]>::DecLit};
     (hexlit) => {<T![]>::HexLit};
 

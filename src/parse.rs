@@ -1,8 +1,11 @@
+//#[cfg(test)]
+//mod tests;
 use crate::lex::{string, Token};
 use crate::Span;
 
 use chumsky::prelude::*;
 use chumsky::recursive::Recursive;
+use chumsky::select;
 
 use std::ops::Range;
 
@@ -143,6 +146,10 @@ pub enum Num {
 }
 
 macro_rules! J {
+    (longstring) => {
+        select! {Token::LongString(n) => n}
+    };
+
     ($($tok:tt)*) => {
         just(T![$($tok)*])
     };
@@ -178,12 +185,9 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
                 (bytes, errors)
             })
             .map(|(bytes, _)| bytes),
-        J![longstring].map_with_span(|_, span: Span| {
+        J![longstring].map_with_span(|n, span: Span| {
             let slice = &source[span];
-            // unwrapping is fine because we know there's a [=*[ delimiter at the start
-            // of the long string literal. coincidentally, the index found
-            // is also the number of `=`.
-            let n = slice[1..].find('[').unwrap() + 2;
+            let n = n + 2;
 
             let literal = &slice[n..slice.len() - n];
             let mut bytes = literal.as_bytes().to_owned();
