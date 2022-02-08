@@ -1,5 +1,7 @@
+mod number;
 #[cfg(test)]
 mod tests;
+
 use crate::lex::{string, Token};
 use crate::Span;
 
@@ -404,8 +406,8 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
     )));
 
     let numlit = choice((
-        J![declit].map_with_span(|_, span| todo!()),
-        J![hexlit].map_with_span(|_, span| todo!()),
+        J![declit].map_with_span(|_, span| number::eval_num_lit::<10>(&source[span])),
+        J![hexlit].map_with_span(|_, span| number::eval_num_lit::<16>(&source[span])),
     ));
 
     let atomexpr = choice((

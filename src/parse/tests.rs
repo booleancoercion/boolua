@@ -16,3 +16,4 @@ macro_rules! parse_and_verify {
 
 parse_and_verify!(simple_if, "programs/simple_if.lua");
 parse_and_verify!(simple_expr, "programs/simple_expr.lua");
+parse_and_verify!(numbers, "programs/numbers.lua");
