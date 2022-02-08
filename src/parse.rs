@@ -1,5 +1,5 @@
-//#[cfg(test)]
-//mod tests;
+#[cfg(test)]
+mod tests;
 use crate::lex::{string, Token};
 use crate::Span;
 
@@ -474,27 +474,29 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
     block()
 }
 
-fn binary_left<E>(
-    previous: impl Parser<Token, Expr, Error = E> + Clone,
-    operators: impl Parser<Token, BinOp, Error = E> + Clone,
-) -> impl Parser<Token, Expr, Error = E> + Clone
+fn binary_left<'a, E>(
+    previous: impl Parser<Token, Expr, Error = E> + Clone + 'a,
+    operators: impl Parser<Token, BinOp, Error = E> + Clone + 'a,
+) -> impl Parser<Token, Expr, Error = E> + Clone + 'a
 where
-    E: chumsky::Error<Token>,
+    E: chumsky::Error<Token> + 'a,
 {
     previous
         .clone()
         .then(operators.then(previous).repeated())
         .foldl(|acc, (op, expr)| Expr::Binary(Box::new(acc), op, Box::new(expr)))
+        .boxed()
 }
 
-fn binary_right<E>(
-    previous: impl Parser<Token, Expr, Error = E> + Clone,
-    operators: impl Parser<Token, BinOp, Error = E> + Clone,
-) -> impl Parser<Token, Expr, Error = E> + Clone
+fn binary_right<'a, E>(
+    previous: impl Parser<Token, Expr, Error = E> + Clone + 'a,
+    operators: impl Parser<Token, BinOp, Error = E> + Clone + 'a,
+) -> impl Parser<Token, Expr, Error = E> + Clone + 'a
 where
-    E: chumsky::Error<Token>,
+    E: chumsky::Error<Token> + 'a,
 {
     (previous.clone().then(operators).repeated())
         .then(previous)
         .foldr(|(expr, op), acc| Expr::Binary(Box::new(expr), op, Box::new(acc)))
+        .boxed()
 }
