@@ -1,4 +1,4 @@
-use crate::{Span, Spanned, WithSpan};
+use boolua_common::{Span, Spanned, WithSpan};
 
 use logos::Logos;
 

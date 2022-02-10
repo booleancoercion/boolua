@@ -33,16 +33,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bed554bd50246729a1ec158d08aa3235d1b69d94ad120ebe187e28894787e736"
 
 [[package]]
-name = "boolua"
+name = "boolua_common"
+version = "0.1.0"
+
+[[package]]
+name = "boolua_lexer"
 version = "0.1.0"
 dependencies = [
+ "boolua_common",
+ "logos",
+ "utf8-rfc2279",
+]
+
+[[package]]
+name = "boolua_parser"
+version = "0.1.0"
+dependencies = [
+ "boolua_common",
+ "boolua_lexer",
  "chumsky",
  "insta",
  "lazy_static",
- "logos",
  "paste",
  "regex",
- "utf8-rfc2279",
 ]
 
 [[package]]

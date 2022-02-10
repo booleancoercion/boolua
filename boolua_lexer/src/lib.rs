@@ -1,6 +1,7 @@
 pub mod string;
 
-use logos::{Filter, Lexer, Logos};
+pub use logos::Logos;
+use logos::{Filter, Lexer};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Logos)]
 #[rustfmt::skip]
@@ -174,5 +175,5 @@ macro_rules! T {
     (declit) => {<T![]>::DecLit};
     (hexlit) => {<T![]>::HexLit};
 
-    () => {$crate::lex::Token};
+    () => {$crate::Token};
 }

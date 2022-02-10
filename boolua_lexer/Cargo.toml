@@ -1,0 +1,11 @@
+[package]
+name = "boolua_lexer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+boolua_common = { path = "../boolua_common" }
+logos = "0.12.0"
+utf8-rfc2279 = "0.1.0"

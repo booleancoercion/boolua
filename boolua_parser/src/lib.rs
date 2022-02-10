@@ -2,14 +2,21 @@ mod number;
 #[cfg(test)]
 mod tests;
 
-use crate::lex::{string, Token};
-use crate::Span;
+use boolua_common::Span;
+use boolua_lexer::{string, Logos, Token, T};
 
 use chumsky::prelude::*;
 use chumsky::recursive::Recursive;
-use chumsky::select;
+use chumsky::{primitive, select, Stream};
 
 use std::ops::Range;
+
+pub fn parse_source(source: &str) -> Result<Block, Vec<Simple<Token>>> {
+    let tokens = Token::lexer(source).spanned();
+    let stream = Stream::from_iter(source.len()..source.len() + 1, tokens);
+
+    chunk(source).then_ignore(primitive::end()).parse(stream)
+}
 
 #[derive(Clone, Debug)]
 pub struct Block {
@@ -124,7 +131,7 @@ where
     parser.separated_by(delim).at_least(1)
 }
 
-pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> + '_ {
+fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> + '_ {
     let name = J![ident].map_with_span(|_, span: Range<usize>| Name(source[span].to_owned()));
 
     let litstring = choice((
