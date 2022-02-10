@@ -31,8 +31,8 @@ pub enum Stmt {
     If(Expr, Block, Vec<(Expr, Block)>, Option<Block>),
     ForNumeric(Name, Expr, Expr, Option<Expr>, Block),
     ForGeneric(Vec<Name>, Vec<Expr>, Block),
-    FnDecl(FnName, Option<ParList>, Block),
-    LocalFnDecl(Name, Option<ParList>, Block),
+    FnDecl(FnName, Vec<Name>, bool, Block),
+    LocalFnDecl(Name, Vec<Name>, bool, Block),
     LocalAssignment(Vec<(Name, Attrib)>, Option<Vec<Expr>>),
 }
 
@@ -50,7 +50,7 @@ pub enum Expr {
     Num(Num),
     Str(Vec<u8>),
     VarArgs,
-    FnDef(Option<ParList>, Block),
+    FnDef(Vec<Name>, bool, Block),
     Prefix(PrefixExpr),
     TableCtor(Vec<Field>),
     Binary(Box<Self>, BinOp, Box<Self>),
@@ -58,14 +58,7 @@ pub enum Expr {
 }
 
 #[derive(Clone, Debug)]
-pub enum Args {
-    List(Option<Vec<Expr>>),
-    TableCtor(Vec<Field>),
-    Str(Vec<u8>),
-}
-
-#[derive(Clone, Debug)]
-pub struct FnCall(pub PrefixExpr, pub Option<Name>, pub Args);
+pub struct FnCall(pub PrefixExpr, pub Option<Name>, pub Vec<Expr>);
 
 #[derive(Clone, Debug)]
 pub enum Var {
@@ -78,12 +71,6 @@ pub enum PrefixExpr {
     Var(Box<Var>),
     FnCall(Box<FnCall>),
     Parend(Box<Expr>),
-}
-
-#[derive(Clone, Debug)]
-pub enum ParList {
-    Params(Vec<Name>, bool),
-    VarArgs,
 }
 
 #[derive(Clone, Debug)]
@@ -202,22 +189,22 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         .delimited_by(J!['{'], J!['}']);
 
     let args = choice((
-        exprlist
+        expr().separated_by(J![,]).delimited_by(J!['('], J![')']),
+        tableconstructor
             .clone()
-            .or_not()
-            .delimited_by(J!['('], J![')'])
-            .map(Args::List),
-        tableconstructor.clone().map(Args::TableCtor),
-        litstring.map(Args::Str),
+            .map(|ctor| vec![Expr::TableCtor(ctor)]),
+        litstring.map(|lit| vec![Expr::Str(lit)]),
     ));
 
     let parlist = choice((
         namelist
             .clone()
             .then(just([T![,], T![...]]).or_not())
-            .map(|(namelist, opt)| ParList::Params(namelist, opt.is_some())),
-        J![...].to(ParList::VarArgs),
-    ));
+            .map(|(namelist, opt)| (namelist, opt.is_some())),
+        J![...].map(|_| (vec![], true)),
+    ))
+    .or_not()
+    .map(|opt| opt.unwrap_or_else(|| (vec![], false)));
 
     let retstmt = J![return]
         .ignore_then(expr().separated_by(J![,]))
@@ -230,7 +217,6 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
     let block = || block.clone();
 
     let funcbody = parlist
-        .or_not()
         .delimited_by(J!['('], J![')'])
         .then(block())
         .then_ignore(J![end]);
@@ -358,11 +344,15 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         J![function]
             .ignore_then(funcname)
             .then(funcbody.clone())
-            .map(|(funcname, (parlist, block))| Stmt::FnDecl(funcname, parlist, block)),
+            .map(|(funcname, ((params, varargs), block))| {
+                Stmt::FnDecl(funcname, params, varargs, block)
+            }),
         just([T![local], T![function]])
             .ignore_then(name)
             .then(funcbody)
-            .map(|(name, (parlist, block))| Stmt::LocalFnDecl(name, parlist, block)),
+            .map(|(name, ((params, varargs), block))| {
+                Stmt::LocalFnDecl(name, params, varargs, block)
+            }),
         J![local]
             .ignore_then(attnamelist.clone())
             .then(J![=].ignore_then(exprlist).or_not())
@@ -381,7 +371,7 @@ pub fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> +
         numlit.map(Expr::Num),
         litstring.map(Expr::Str),
         J![...].to(Expr::VarArgs),
-        functiondef.map(|(parlist, block)| Expr::FnDef(parlist, block)),
+        functiondef.map(|((params, varargs), block)| Expr::FnDef(params, varargs, block)),
         prefixexpr.map(Expr::Prefix),
         tableconstructor.map(Expr::TableCtor),
     ));
