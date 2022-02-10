@@ -1,7 +1,11 @@
 pub mod string;
 
-pub use logos::Logos;
-use logos::{Filter, Lexer};
+use boolua_common::Span;
+use logos::{Filter, Lexer, Logos};
+
+pub fn tokenize(source: &str) -> impl Iterator<Item = (Token, Span)> + '_ {
+    Token::lexer(source).spanned()
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Logos)]
 #[rustfmt::skip]
