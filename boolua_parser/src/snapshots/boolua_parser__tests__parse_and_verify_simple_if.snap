@@ -1,5 +1,5 @@
 ---
-source: src/parse/tests.rs
+source: src/tests.rs
 assertion_line: 17
 expression: ast
 
@@ -14,25 +14,13 @@ Block {
                         FnCall(
                             Var(
                                 Simple(
-                                    Name(
-                                        "print",
-                                    ),
+                                    Name("print"),
                                 ),
                             ),
                             None,
                             [
                                 Str(
-                                    [
-                                        115,
-                                        111,
-                                        109,
-                                        101,
-                                        116,
-                                        104,
-                                        105,
-                                        110,
-                                        103,
-                                    ],
+                                    "something",
                                 ),
                             ],
                         ),

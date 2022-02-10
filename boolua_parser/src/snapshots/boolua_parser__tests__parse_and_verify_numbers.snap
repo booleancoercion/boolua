@@ -1,5 +1,5 @@
 ---
-source: src/parse/tests.rs
+source: src/tests.rs
 assertion_line: 19
 expression: ast
 
@@ -9,9 +9,7 @@ Block {
         Assignment(
             [
                 Simple(
-                    Name(
-                        "a",
-                    ),
+                    Name("a"),
                 ),
             ],
             [
@@ -33,9 +31,7 @@ Block {
         Assignment(
             [
                 Simple(
-                    Name(
-                        "b",
-                    ),
+                    Name("b"),
                 ),
             ],
             [

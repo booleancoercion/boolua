@@ -1,5 +1,5 @@
 ---
-source: src/parse/tests.rs
+source: src/tests.rs
 assertion_line: 18
 expression: ast
 
@@ -9,9 +9,7 @@ Block {
         Assignment(
             [
                 Simple(
-                    Name(
-                        "x",
-                    ),
+                    Name("x"),
                 ),
             ],
             [
@@ -19,9 +17,7 @@ Block {
                     Prefix(
                         Var(
                             Simple(
-                                Name(
-                                    "a",
-                                ),
+                                Name("a"),
                             ),
                         ),
                     ),
@@ -30,9 +26,7 @@ Block {
                         Prefix(
                             Var(
                                 Simple(
-                                    Name(
-                                        "b",
-                                    ),
+                                    Name("b"),
                                 ),
                             ),
                         ),
@@ -40,9 +34,7 @@ Block {
                         Prefix(
                             Var(
                                 Simple(
-                                    Name(
-                                        "c",
-                                    ),
+                                    Name("c"),
                                 ),
                             ),
                         ),

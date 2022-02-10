@@ -1,0 +1,74 @@
+---
+source: src/tests.rs
+assertion_line: 21
+expression: ast
+
+---
+Block {
+    stmts: [
+        Assignment(
+            [
+                Simple(
+                    Name("a"),
+                ),
+            ],
+            [
+                Binary(
+                    Prefix(
+                        Var(
+                            Simple(
+                                Name("b"),
+                            ),
+                        ),
+                    ),
+                    Add,
+                    Prefix(
+                        Var(
+                            Simple(
+                                Name("c"),
+                            ),
+                        ),
+                    ),
+                ),
+            ],
+        ),
+        Empty,
+        FnCall(
+            FnCall(
+                Parend(
+                    Binary(
+                        Prefix(
+                            Var(
+                                Simple(
+                                    Name("print"),
+                                ),
+                            ),
+                        ),
+                        Or,
+                        Prefix(
+                            Var(
+                                Indexed(
+                                    Var(
+                                        Simple(
+                                            Name("io"),
+                                        ),
+                                    ),
+                                    Str(
+                                        "write",
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                None,
+                [
+                    Str(
+                        "done",
+                    ),
+                ],
+            ),
+        ),
+    ],
+    ret: None,
+}

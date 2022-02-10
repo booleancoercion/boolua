@@ -1,4 +1,5 @@
 mod number;
+mod pretty_print;
 #[cfg(test)]
 mod tests;
 
@@ -40,7 +41,7 @@ pub enum Stmt {
     ForGeneric(Vec<Name>, Vec<Expr>, Block),
     FnDecl(FnName, Vec<Name>, bool, Block),
     LocalFnDecl(Name, Vec<Name>, bool, Block),
-    LocalAssignment(Vec<(Name, Attrib)>, Option<Vec<Expr>>),
+    LocalAssignment(Vec<(Name, Attrib)>, Vec<Expr>),
 }
 
 #[derive(Clone, Debug)]
@@ -55,7 +56,7 @@ pub enum Expr {
     False,
     True,
     Num(Num),
-    Str(Vec<u8>),
+    Str(LuaStr),
     VarArgs,
     FnDef(Vec<Name>, bool, Block),
     Prefix(PrefixExpr),
@@ -102,8 +103,11 @@ pub enum UnOp {
     Minus, Not, Length, BitNot,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Name(pub String);
+
+#[derive(Clone)]
+pub struct LuaStr(pub Vec<u8>);
 
 #[derive(Clone, Debug)]
 pub enum Num {
@@ -200,7 +204,7 @@ fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> + '_ 
         tableconstructor
             .clone()
             .map(|ctor| vec![Expr::TableCtor(ctor)]),
-        litstring.map(|lit| vec![Expr::Str(lit)]),
+        litstring.map(|lit| vec![Expr::Str(LuaStr(lit))]),
     ));
 
     let parlist = choice((
@@ -250,7 +254,9 @@ fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> + '_ 
 
     let infix = choice((
         expr().delimited_by(J!['['], J![']']),
-        J![.].ignore_then(name).map(|name| Expr::Str(name.0.into())),
+        J![.]
+            .ignore_then(name)
+            .map(|name| Expr::Str(LuaStr(name.0.into()))),
     ));
 
     let fncallrest = infix.clone().repeated().then(callormethod);
@@ -363,7 +369,9 @@ fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> + '_ 
         J![local]
             .ignore_then(attnamelist.clone())
             .then(J![=].ignore_then(exprlist).or_not())
-            .map(|(attnamelist, exprlist)| Stmt::LocalAssignment(attnamelist, exprlist)),
+            .map(|(attnamelist, exprlist)| {
+                Stmt::LocalAssignment(attnamelist, exprlist.unwrap_or_else(Vec::new))
+            }),
     )));
 
     let numlit = choice((
@@ -376,7 +384,7 @@ fn chunk(source: &str) -> impl Parser<Token, Block, Error = Simple<Token>> + '_ 
         J![false].to(Expr::False),
         J![true].to(Expr::True),
         numlit.map(Expr::Num),
-        litstring.map(Expr::Str),
+        litstring.map(|x| Expr::Str(LuaStr(x))),
         J![...].to(Expr::VarArgs),
         functiondef.map(|((params, varargs), block)| Expr::FnDef(params, varargs, block)),
         prefixexpr.map(Expr::Prefix),
