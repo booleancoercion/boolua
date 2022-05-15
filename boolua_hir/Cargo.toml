@@ -1,0 +1,10 @@
+[package]
+name = "boolua_hir"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+boolua_common = { path = "../boolua_common" }
+boolua_parser = { path = "../boolua_parser" }

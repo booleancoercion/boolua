@@ -1,4 +1,4 @@
-use super::Num;
+use super::structs::Num;
 
 use lazy_static::lazy_static;
 use regex::{Match, Regex};
